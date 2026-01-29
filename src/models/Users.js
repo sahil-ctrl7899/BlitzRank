@@ -16,6 +16,11 @@ const User = sequelize.define(
       unique: true
     },
 
+    password: {
+    type: DataTypes.STRING,
+    allowNull: false
+    },
+
     balance: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,

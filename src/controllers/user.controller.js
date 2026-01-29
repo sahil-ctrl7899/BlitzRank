@@ -1,18 +1,66 @@
 const { User, WalletTransaction } = require("../models");
 const walletService = require("../services/wallet.service");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+
+const SECRET = process.env.JWT_SECRET;
 
 exports.createUser = async (req, res) => {
-    try {
-        const { username, balance = 0 } = req.body;
-        if (!username) {
-            return res.status(400).json({ msg: "Username is required" });
-        }
+  try {
+    const { username, password } = req.body;
 
-        const user = await User.create({ username, balance });
-        res.status(201).json(user);
-    } catch (err) {
-        res.status(500).json({ msg: "Failed to create user", error: err.message });
+    if (!username || !password) {
+      return res.status(400).json({ msg: "Username and password are required" });
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      username,
+      password: hashedPassword,
+      balance: 0
+    });
+
+    const token = jwt.sign(
+    { userId: user.id },
+    SECRET,
+    { expiresIn: "1d" }
+    );
+
+    res.status(201).json({
+      msg: "User created successfully",
+      userId: user.id,
+      token
+    });
+  } catch (err) {
+    res.status(500).json({ msg: "Failed to create user", error: err.message });
+  }
+};
+
+exports.loginUser = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const user = await User.findOne({ where: { username } });
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ msg: "Invalid password" });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id },
+      SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ msg: "Login failed", error: err.message });
+  }
 };
 
 exports.getUsers = async (req, res) => {
