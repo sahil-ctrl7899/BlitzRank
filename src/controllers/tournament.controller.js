@@ -2,7 +2,7 @@ const tournamentService = require("../services/tournament.service");
 
 exports.createTournament = async (req, res) => {
     try {
-        const tournament = await tournamentService.create(req.body||{});
+        const tournament = await tournamentService.create(req.body);
         res.status(201).json(tournament);
     } catch (err) {
         res.status(400).json({ msg: "Failed to create tournament", error: err.message });
@@ -51,5 +51,20 @@ exports.getParticipants = async (req, res) => {
         res.json(data);
     } catch (err) {
         res.status(500).json({ msg: "Failed to fetch participants", error: err.message });
+    }
+};
+
+exports.joinTournament = async (req, res) => {
+    const tournamentId = req.params.id;
+    const { userId } = req.body;
+
+    try {
+        const result = await tournamentService.joinTournament(
+            userId,
+            tournamentId
+        );
+        res.json(result);
+    } catch (err) {
+        res.status(400).json({ msg: err.message });
     }
 };

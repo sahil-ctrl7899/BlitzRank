@@ -1,4 +1,4 @@
-const { Tournament, Participant, User } = require("../models");
+const { Tournament, Participant, User, WalletTransaction } = require("../models");
 
 exports.create = async (data) => {
     return Tournament.create({
@@ -35,5 +35,72 @@ exports.getParticipants = async (tournamentId) => {
             attributes: ["id", "username"]
         },
         order: [["currentScore", "DESC"]]
+    });
+};
+
+exports.joinTournament = async (userId, tournamentId) => {
+    return sequelize.transaction(async (t) => {
+        // 1️⃣ Fetch user
+        const user = await User.findByPk(userId, { transaction: t });
+        if (!user) throw new Error("User not found");
+
+        // 2️⃣ Fetch tournament
+        const tournament = await Tournament.findByPk(tournamentId, {
+            transaction: t
+        });
+        if (!tournament) throw new Error("Tournament not found");
+
+        // 3️⃣ Check tournament status
+        if (tournament.status !== "OPEN") {
+            throw new Error("Tournament not open for joining");
+        }
+
+        // 4️⃣ Check duplicate join
+        const alreadyJoined = await Participant.findOne({
+            where: { userId, tournamentId },
+            transaction: t
+        });
+
+        if (alreadyJoined) {
+            throw new Error("User already joined this tournament");
+        }
+
+        // 5️⃣ Check balance
+        if (Number(user.balance) < Number(tournament.entryFee)) {
+            throw new Error("Insufficient balance");
+        }
+
+        // 6️⃣ Deduct balance
+        user.balance = Number(user.balance) - Number(tournament.entryFee);
+        await user.save({ transaction: t });
+
+        // 7️⃣ Create wallet transaction
+        await WalletTransaction.create(
+            {
+                userId,
+                type: "DEBIT",
+                amount: tournament.entryFee,
+                reason: "JOIN_TOURNAMENT",
+                referenceId: tournamentId
+            },
+            { transaction: t }
+        );
+
+        // 8️⃣ Add participant
+        const participant = await Participant.create(
+            {
+                userId,
+                tournamentId,
+                currentScore: 0
+            },
+            { transaction: t }
+        );
+
+        // 9️⃣ Success
+        return {
+            message: "Joined tournament successfully",
+            participantId: participant.id,
+            remainingBalance: user.balance
+        };
     });
 };
