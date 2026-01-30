@@ -1,70 +1,77 @@
+// controllers/tournament.controller.js
 const tournamentService = require("../services/tournament.service");
 
-exports.createTournament = async (req, res) => {
+class TournamentController {
+
+  async createTournament(req, res) {
     try {
-        const tournament = await tournamentService.create(req.body);
-        res.status(201).json(tournament);
+      const tournament = await tournamentService.create(req.body);
+      res.status(201).json(tournament);
     } catch (err) {
-        res.status(400).json({ msg: "Failed to create tournament", error: err.message });
+      res.status(400).json({ msg: "Failed to create tournament", error: err.message });
     }
-};
+  }
 
-exports.getTournaments = async (req, res) => {
+  async getTournaments(req, res) {
     try {
-        const tournaments = await tournamentService.getAll();
-        res.json(tournaments);
+      const tournaments = await tournamentService.getAll();
+      res.json(tournaments);
     } catch (err) {
-        res.status(500).json({ msg: "Failed to fetch tournaments", error: err.message });
+      res.status(500).json({ msg: "Failed to fetch tournaments", error: err.message });
     }
-};
+  }
 
-exports.getTournamentById = async (req, res) => {
+  async getTournamentById(req, res) {
     try {
-        const tournament = await tournamentService.getById(req.params.id);
-        if (!tournament) return res.status(404).json({ msg: "Not found" });
-        res.json(tournament);
+      const tournament = await tournamentService.getById(req.params.id);
+      if (!tournament) return res.status(404).json({ msg: "Not found" });
+      res.json(tournament);
     } catch (err) {
-        res.status(500).json({ msg: "Failed to fetch tournament", error: err.message });
+      res.status(500).json({ msg: "Failed to fetch tournament", error: err.message });
     }
-};
+  }
 
-exports.updateStatus = async (req, res) => {
+  async updateStatus(req, res) {
     try {
-        const { status } = req.body;
-        if (!status) {
-            return res.status(400).json({ msg: "Status is required" });
-        }
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ msg: "Status is required" });
+      }
 
-        const tournament = await tournamentService.updateStatus(
-            req.params.id,
-            status
-        );
-        res.json(tournament);
+      const tournament = await tournamentService.updateStatus(
+        req.params.id,
+        status
+      );
+      res.json(tournament);
     } catch (err) {
-        res.status(400).json({ msg: "Failed to update status", error: err.message });
+      res.status(400).json({ msg: "Failed to update status", error: err.message });
     }
-};
+  }
 
-exports.getParticipants = async (req, res) => {
+  async getParticipants(req, res) {
     try {
-        const data = await tournamentService.getParticipants(req.params.id);
-        res.json(data);
+      const data = await tournamentService.getParticipants(req.params.id);
+      res.json(data);
     } catch (err) {
-        res.status(500).json({ msg: "Failed to fetch participants", error: err.message });
+      res.status(500).json({ msg: "Failed to fetch participants", error: err.message });
     }
-};
+  }
 
-exports.joinTournament = async (req, res) => {
+  async joinTournament(req, res) {
     const tournamentId = req.params.id;
     const { userId } = req.body;
 
     try {
-        const result = await tournamentService.joinTournament(
-            userId,
-            tournamentId
-        );
-        res.json(result);
+      const result = await tournamentService.joinTournament(
+        userId,
+        tournamentId
+      );
+      res.json(result);
     } catch (err) {
-        res.status(400).json({ msg: err.message });
+      res.status(400).json({ msg: err.message });
     }
-};
+  }
+}
+
+module.exports = new TournamentController();
+

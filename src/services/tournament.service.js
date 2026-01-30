@@ -1,23 +1,27 @@
+// services/tournament.service.js
 const { Tournament, Participant, User, WalletTransaction } = require("../models");
+const { sequelize } = require("../config/db");
 
-exports.create = async (data) => {
+class TournamentService {
+
+  async create(data) {
     return Tournament.create({
-        name: data.name,
-        entryFee: data.entryFee,
-        startTime: data.startTime,
-        endTime: data.endTime
+      name: data.name,
+      entryFee: data.entryFee,
+      startTime: data.startTime,
+      endTime: data.endTime
     });
-};
+  }
 
-exports.getAll = async () => {
+  async getAll() {
     return Tournament.findAll({ order: [["createdAt", "DESC"]] });
-};
+  }
 
-exports.getById = async (id) => {
+  async getById(id) {
     return Tournament.findByPk(id);
-};
+  }
 
-exports.updateStatus = async (id, status) => {
+  async updateStatus(id, status) {
     const tournament = await Tournament.findByPk(id);
     if (!tournament) throw new Error("Tournament not found");
 
@@ -25,82 +29,77 @@ exports.updateStatus = async (id, status) => {
     await tournament.save();
 
     return tournament;
-};
+  }
 
-exports.getParticipants = async (tournamentId) => {
+  async getParticipants(tournamentId) {
     return Participant.findAll({
-        where: { tournamentId },
-        include: {
-            model: User,
-            attributes: ["id", "username"]
-        },
-        order: [["currentScore", "DESC"]]
+      where: { tournamentId },
+      include: {
+        model: User,
+        attributes: ["id", "username"]
+      },
+      order: [["currentScore", "DESC"]]
     });
-};
+  }
 
-exports.joinTournament = async (userId, tournamentId) => {
+  async joinTournament(userId, tournamentId) {
     return sequelize.transaction(async (t) => {
-        // 1️⃣ Fetch user
-        const user = await User.findByPk(userId, { transaction: t });
-        if (!user) throw new Error("User not found");
+      const user = await User.findByPk(userId, { transaction: t });
+      if (!user) throw new Error("User not found");
 
-        // 2️⃣ Fetch tournament
-        const tournament = await Tournament.findByPk(tournamentId, {
-            transaction: t
-        });
-        if (!tournament) throw new Error("Tournament not found");
+      const tournament = await Tournament.findByPk(tournamentId, {
+        transaction: t
+      });
+      if (!tournament) throw new Error("Tournament not found");
 
-        // 3️⃣ Check tournament status
-        if (tournament.status !== "OPEN") {
-            throw new Error("Tournament not open for joining");
-        }
+      if (tournament.status !== "OPEN") {
+        throw new Error("Tournament not open for joining");
+      }
 
-        // 4️⃣ Check duplicate join
-        const alreadyJoined = await Participant.findOne({
-            where: { userId, tournamentId },
-            transaction: t
-        });
+      const alreadyJoined = await Participant.findOne({
+        where: { userId, tournamentId },
+        transaction: t
+      });
 
-        if (alreadyJoined) {
-            throw new Error("User already joined this tournament");
-        }
+      if (alreadyJoined) {
+        throw new Error("User already joined this tournament");
+      }
 
-        // 5️⃣ Check balance
-        if (Number(user.balance) < Number(tournament.entryFee)) {
-            throw new Error("Insufficient balance");
-        }
+      if (Number(user.balance) < Number(tournament.entryFee)) {
+        throw new Error("Insufficient balance");
+      }
 
-        // 6️⃣ Deduct balance
-        user.balance = Number(user.balance) - Number(tournament.entryFee);
-        await user.save({ transaction: t });
+      user.balance = Number(user.balance) - Number(tournament.entryFee);
+      await user.save({ transaction: t });
 
-        // 7️⃣ Create wallet transaction
-        await WalletTransaction.create(
-            {
-                userId,
-                type: "DEBIT",
-                amount: tournament.entryFee,
-                reason: "JOIN_TOURNAMENT",
-                referenceId: tournamentId
-            },
-            { transaction: t }
-        );
+      await WalletTransaction.create(
+        {
+          userId,
+          type: "DEBIT",
+          amount: tournament.entryFee,
+          reason: "JOIN_TOURNAMENT",
+          referenceId: tournamentId
+        },
+        { transaction: t }
+      );
 
-        // 8️⃣ Add participant
-        const participant = await Participant.create(
-            {
-                userId,
-                tournamentId,
-                currentScore: 0
-            },
-            { transaction: t }
-        );
+      const participant = await Participant.create(
+        {
+          userId,
+          tournamentId,
+          currentScore: 0
+        },
+        { transaction: t }
+      );
 
-        // 9️⃣ Success
-        return {
-            message: "Joined tournament successfully",
-            participantId: participant.id,
-            remainingBalance: user.balance
-        };
+      return {
+        message: "Joined tournament successfully",
+        participantId: participant.id,
+        remainingBalance: user.balance
+      };
     });
-};
+  }
+}
+
+module.exports = new TournamentService();
+

@@ -1,50 +1,57 @@
+// services/wallet.service.js
 const { sequelize } = require("../config/db");
 const { User, WalletTransaction } = require("../models");
 
-exports.credit = async (userId, amount, reason) => {
-  return sequelize.transaction(async (t) => {
-    const user = await User.findByPk(userId, { transaction: t });
-    if (!user) throw new Error("User not found");
+class WalletService {
 
-    user.balance = Number(user.balance) + Number(amount);
-    await user.save({ transaction: t });
+  async credit(userId, amount, reason) {
+    return sequelize.transaction(async (t) => {
+      const user = await User.findByPk(userId, { transaction: t });
+      if (!user) throw new Error("User not found");
 
-    await WalletTransaction.create(
-      {
-        userId,
-        type: "CREDIT",
-        amount,
-        reason
-      },
-      { transaction: t }
-    );
+      user.balance = Number(user.balance) + Number(amount);
+      await user.save({ transaction: t });
 
-    return { balance: user.balance };
-  });
-};
+      await WalletTransaction.create(
+        {
+          userId,
+          type: "CREDIT",
+          amount,
+          reason
+        },
+        { transaction: t }
+      );
 
-exports.debit = async (userId, amount, reason) => {
-  return sequelize.transaction(async (t) => {
-    const user = await User.findByPk(userId, { transaction: t });
-    if (!user) throw new Error("User not found");
+      return { balance: user.balance };
+    });
+  }
 
-    if (Number(user.balance) < Number(amount)) {
-      throw new Error("Insufficient balance");
-    }
+  async debit(userId, amount, reason) {
+    return sequelize.transaction(async (t) => {
+      const user = await User.findByPk(userId, { transaction: t });
+      if (!user) throw new Error("User not found");
 
-    user.balance = Number(user.balance) - Number(amount);
-    await user.save({ transaction: t });
+      if (Number(user.balance) < Number(amount)) {
+        throw new Error("Insufficient balance");
+      }
 
-    await WalletTransaction.create(
-      {
-        userId,
-        type: "DEBIT",
-        amount,
-        reason
-      },
-      { transaction: t }
-    );
+      user.balance = Number(user.balance) - Number(amount);
+      await user.save({ transaction: t });
 
-    return { balance: user.balance };
-  });
-};
+      await WalletTransaction.create(
+        {
+          userId,
+          type: "DEBIT",
+          amount,
+          reason
+        },
+        { transaction: t }
+      );
+
+      return { balance: user.balance };
+    });
+  }
+}
+
+module.exports = new WalletService();
+
