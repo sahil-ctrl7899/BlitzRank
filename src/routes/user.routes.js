@@ -1,22 +1,30 @@
-const router= require("express").Router();
+const router = require("express").Router();
 const userController = require("../controllers/user.controller");
-const authMiddleware = require("../middleware/authmiddleware")
+const auth = require("../middlewares/authmiddleware");
+const role = require("../middlewares/rolemiddleware");
 
-router.post("/signup",userController.createUser);
-router.post("/login",userController.loginUser);
+// Public
+router.post("/signup", userController.createUser);
+router.post("/login", userController.loginUser);
 
-router.get("/profile", authMiddleware , (req, res) => {
-  res.json({
-    msg: "You are authenticated",
-    userId: req.userId
-  });
+
+
+// Protected
+router.get("/profile", auth, (req, res) => {
+    res.json({
+        msg: "You are authenticat+d",
+        userId: req.userId
+    });
 });
-router.get("/", authMiddleware ,userController.getUsers);
-router.get("/:id", authMiddleware ,userController.getUserById);
-router.get("/:id/balance", authMiddleware ,userController.getBalance);
+router.get("/", auth, userController.getUsers);
+router.get("/:id", auth, userController.getUserById);
+router.get("/:id/balance", auth, userController.getBalance);
 
-router.post("/:id/credit", authMiddleware, userController.creditWallet);
-router.post("/:id/debit", authMiddleware, userController.debitWallet);
-router.get("/:id/transactions", authMiddleware, userController.getWalletTransactions);
 
-module.exports=router;
+// Wallet (ADMIN only)
+router.put("/:id/role",auth, role(["ADMIN"]),userController.updateUserRole);
+router.post("/:id/credit", auth, role(["ADMIN"]), userController.creditWallet);
+router.post("/:id/debit", auth, role(["ADMIN"]), userController.debitWallet);
+router.get("/:id/transactions", auth, role(["ADMIN"]), userController.getWalletTransactions);
+
+module.exports = router;

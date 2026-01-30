@@ -1,5 +1,5 @@
-const {DataTypes}=require("sequelize");
-const {sequelize}=require("../config/db");
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/db");
 
 const User = sequelize.define(
   "User",
@@ -17,8 +17,14 @@ const User = sequelize.define(
     },
 
     password: {
-    type: DataTypes.STRING,
-    allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+
+    role: {
+      type: DataTypes.ENUM("USER", "ADMIN", "GAME_SERVER"),
+      allowNull: false,
+      defaultValue: "USER"
     },
 
     balance: {

@@ -3,65 +3,88 @@ const walletService = require("../services/wallet.service");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 
-const SECRET = process.env.JWT_SECRET;
+const SECRET = process.env.JWT_SECRET || "MYSECRET123";
 
 exports.createUser = async (req, res) => {
-  try {
-    const { username, password } = req.body;
+    try {
+        const { username, password, role } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ msg: "Username and password are required" });
+        if (!username || !password) {
+            return res.status(400).json({ msg: "Username and password are required" });
+        }
+
+        // Default role = USER (never trust client blindly)
+        const userRole = role === "ADMIN" || role === "GAME_SERVER"
+            ? role
+            : "USER";
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const user = await User.create({
+            username,
+            password: hashedPassword,
+            role: userRole,
+            balance: 0
+        });
+
+        const token = jwt.sign(
+            {
+                id: user.id,
+                role: user.role
+            },
+            SECRET,
+            { expiresIn: "1d" }
+        );
+
+        res.status(201).json({
+            msg: "User created successfully",
+            userId: user.id,
+            role: user.role,
+            token
+        });
+    } catch (err) {
+        res.status(500).json({
+            msg: "Failed to create user",
+            error: err.message
+        });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      username,
-      password: hashedPassword,
-      balance: 0
-    });
-
-    const token = jwt.sign(
-    { userId: user.id },
-    SECRET,
-    { expiresIn: "1d" }
-    );
-
-    res.status(201).json({
-      msg: "User created successfully",
-      userId: user.id,
-      token
-    });
-  } catch (err) {
-    res.status(500).json({ msg: "Failed to create user", error: err.message });
-  }
 };
 
 exports.loginUser = async (req, res) => {
-  try {
-    const { username, password } = req.body;
+    try {
+        const { username, password } = req.body;
 
-    const user = await User.findOne({ where: { username } });
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+        const user = await User.findOne({ where: { username } });
+        if (!user) {
+            return res.status(404).json({ msg: "User not found" });
+        }
+
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+            return res.status(401).json({ msg: "Invalid password" });
+        }
+
+        const token = jwt.sign(
+            {
+                id: user.id,
+                role: user.role
+            },
+            SECRET,
+            { expiresIn: "1d" }
+        );
+
+        res.json({
+            token,
+            role: user.role
+        });
+    } catch (err) {
+        res.status(500).json({
+            msg: "Login failed",
+            error: err.message
+        });
     }
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.status(401).json({ msg: "Invalid password" });
-    }
-
-    const token = jwt.sign(
-      { userId: user.id },
-      SECRET,
-      { expiresIn: "1d" }
-    );
-
-    res.json({ token });
-  } catch (err) {
-    res.status(500).json({ msg: "Login failed", error: err.message });
-  }
 };
+
 
 exports.getUsers = async (req, res) => {
     try {
@@ -130,4 +153,49 @@ exports.getWalletTransactions = async (req, res) => {
     } catch (err) {
         res.status(500).json({ msg: "Failed to fetch transactions", error: err.message });
     }
+};
+
+const ALLOWED_ROLES = ["USER", "ADMIN", "GAME_SERVER"];
+
+exports.updateUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({
+        msg: "Invalid role",
+        allowed: ALLOWED_ROLES
+      });
+    }
+
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    // Prevent admin from demoting themselves (optional but smart)
+    if (req.user.id === user.id && role !== user.role) {
+      return res.status(403).json({
+        msg: "You cannot change your own role"
+      });
+    }
+
+    user.role = role;
+    await user.save();
+
+    return res.json({
+      msg: "Role updated successfully",
+      userId: user.id,
+      newRole: user.role,
+      note: "User must re-login for new role to apply"
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      msg: "Failed to update role",
+      error: err.message
+    });
+  }
 };

@@ -55,14 +55,33 @@ exports.getParticipants = async (req, res) => {
 };
 
 exports.joinTournament = async (req, res) => {
+  try {
     const tournamentId = req.params.id;
-    const { userId } = req.body;
 
+    // 🔐 take userId ONLY from JWT
+    const userId = req.user.id;
+
+    const result = await tournamentService.joinTournament(
+      userId,
+      tournamentId
+    );
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
+  }
+};
+
+
+exports.removeParticipant = async (req, res) => {
     try {
-        const result = await tournamentService.joinTournament(
+        const { id: tournamentId, userId } = req.params;
+
+        const result = await tournamentService.removeParticipant(
             userId,
             tournamentId
         );
+
         res.json(result);
     } catch (err) {
         res.status(400).json({ msg: err.message });

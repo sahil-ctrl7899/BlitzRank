@@ -10,6 +10,8 @@ app.use(express.json());
 // Routes
 app.use("/users", require("./routes/user.routes"));
 app.use("/tournaments", require("./routes/tournament.routes"));
+app.use("/score", require("./routes/score.routes"));
+app.use("/leaderboard", require("./routes/leaderboard.routes"));
 
 
 

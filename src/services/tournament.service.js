@@ -1,3 +1,4 @@
+const { sequelize } = require("../config/db");
 const { Tournament, Participant, User, WalletTransaction } = require("../models");
 
 exports.create = async (data) => {
@@ -43,6 +44,11 @@ exports.joinTournament = async (userId, tournamentId) => {
         // 1️⃣ Fetch user
         const user = await User.findByPk(userId, { transaction: t });
         if (!user) throw new Error("User not found");
+
+        // 🔒 DOUBLE SAFETY CHECK
+        if (user.role !== "USER") {
+            throw new Error("Only USER accounts can join tournaments");
+        }
 
         // 2️⃣ Fetch tournament
         const tournament = await Tournament.findByPk(tournamentId, {
@@ -101,6 +107,56 @@ exports.joinTournament = async (userId, tournamentId) => {
             message: "Joined tournament successfully",
             participantId: participant.id,
             remainingBalance: user.balance
+        };
+    });
+};
+
+exports.removeParticipant = async (userId, tournamentId) => {
+    return sequelize.transaction(async (t) => {
+        const tournament = await Tournament.findByPk(tournamentId, {
+            transaction: t
+        });
+
+        if (!tournament) throw new Error("Tournament not found");
+
+        if (tournament.status !== "OPEN") {
+            throw new Error("Cannot remove participant after tournament start");
+        }
+
+        const participant = await Participant.findOne({
+            where: { userId, tournamentId },
+            transaction: t
+        });
+
+        if (!participant) {
+            throw new Error("Participant not found");
+        }
+
+        const user = await User.findByPk(userId, { transaction: t });
+
+        // 1️⃣ Refund entry fee
+        user.balance = Number(user.balance) + Number(tournament.entryFee);
+        await user.save({ transaction: t });
+
+        // 2️⃣ Wallet log
+        await WalletTransaction.create(
+            {
+                userId,
+                type: "CREDIT",
+                amount: tournament.entryFee,
+                reason: "REMOVE_PARTICIPANT_REFUND",
+                referenceId: tournamentId
+            },
+            { transaction: t }
+        );
+
+        // 3️⃣ Remove participant
+        await participant.destroy({ transaction: t });
+
+        return {
+            message: "Participant removed and refunded",
+            refundedAmount: tournament.entryFee,
+            balance: user.balance
         };
     });
 };

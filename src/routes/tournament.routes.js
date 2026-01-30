@@ -1,24 +1,46 @@
 const router = require("express").Router();
 const controller = require("../controllers/tournament.controller");
+const auth = require("../middlewares/authmiddleware");
+const role = require("../middlewares/rolemiddleware");
 
-router.post("/", controller.createTournament);
+// PUBLIC (READ-ONLY)
+
 router.get("/", controller.getTournaments);
 router.get("/:id", controller.getTournamentById);
-router.patch("/:id/status", controller.updateStatus);
 router.get("/:id/participants", controller.getParticipants);
 
-// For making rules POST /tournaments/:id/join
+// ADMIN ONLY
+// Create tournament
+router.post(
+    "/",
+    auth,
+    role(["ADMIN"]),
+    controller.createTournament
+);
 
-// User exists
-// Tournament exists
-// Tournament status = OPEN
-// User has enough balance
-// User is NOT already joined
-// Balance deduction + participant insert = atomic
-// Wallet transaction must be logged
-router.post("/:id/join", controller.joinTournament);
+// Change tournament status (OPEN → ACTIVE → COMPLETED)
+router.patch(
+    "/:id/status",
+    auth,
+    role(["ADMIN"]),
+    controller.updateStatus
+);
 
+// Remove participant + refund
+router.delete(
+    "/:id/participants/:userId",
+    auth,
+    role(["ADMIN"]),
+    controller.removeParticipant
+);
 
-
+// USER ONLY
+// Join tournament (money transaction)
+router.post(
+    "/:id/join",
+    auth,
+    role(["USER"]),
+    controller.joinTournament
+);
 
 module.exports = router;
