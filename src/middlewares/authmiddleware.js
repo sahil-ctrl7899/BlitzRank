@@ -25,7 +25,7 @@ module.exports = async (req, res, next) => {
     req.user = user;
     req.userId = user.id;
     
-    console.log("Authenticated User:", { id: user.id, role: user.role });
+    // console.log("Authenticated User:", { id: user.id, role: user.role });
     
     next();
   } catch (err) {
