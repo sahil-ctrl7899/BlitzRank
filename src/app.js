@@ -3,20 +3,20 @@ const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const errorHandler = require("./middlewares/errormiddleware");
-const cors = require("cors");
+
 
 const app = express();
 
-app.use(cors());
+
 app.use(express.json());
 
 // create stream for access.log
 const accessLogStream = fs.createWriteStream(
-  path.join(process.cwd(), "logs/access.log"),{flags:"a"}
+    path.join(process.cwd(), "logs/access.log"), { flags: "a" }
 );
 
 // log all requests to access.log
-app.use(morgan("combined", {stream: accessLogStream}));
+app.use(morgan("combined", { stream: accessLogStream }));
 
 // Routes
 app.use("/users", require("./routes/user.routes"));
@@ -30,7 +30,7 @@ app.get("/", (req, res) => {
 
 // for checking error and combined log
 app.get("/test-error", (req, res) => {
-  throw new Error("Test error logging");
+    throw new Error("Test error logging");
 });
 
 // for chacking logs
