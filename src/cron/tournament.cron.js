@@ -6,7 +6,7 @@ const { Op } = require("sequelize");
 cron.schedule("* * * * *", async () => {
     try {
         const now = new Date();
-
+        // console.log(now);
         // 1️⃣ OPEN → ACTIVE
         await Tournament.update(
             { status: "ACTIVE" },
@@ -17,7 +17,6 @@ cron.schedule("* * * * *", async () => {
                 }
             }
         );
-
         // 2️⃣ ACTIVE → COMPLETED
         await Tournament.update(
             { status: "COMPLETED" },
@@ -28,7 +27,6 @@ cron.schedule("* * * * *", async () => {
                 }
             }
         );
-
         console.log("⏱ Tournament cron executed");
     } catch (err) {
         console.error("❌ Tournament cron error:", err.message);
