@@ -91,8 +91,10 @@ class UserController {
 
   async getUsers(req, res) {
     try {
-      const users = await User.findAll();
-      res.json(users);
+      const users = await User.findAll(({
+      attributes: ["id", "username", "role", "balance"]
+    }));
+    res.json(users);
     } catch (err) {
       res.status(500).json({ msg: "Failed to fetch users", error: err.message });
     }
@@ -200,6 +202,7 @@ class UserController {
       });
     }
   }
+  
 }
 
 module.exports = new UserController();
