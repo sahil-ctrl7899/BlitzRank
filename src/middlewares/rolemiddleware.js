@@ -1,6 +1,6 @@
 module.exports = (roles = []) => {
     return (req, res, next) => {
-        console.log(req.user);
+        // console.log(req.user);
         if (!req.user || !req.user.role) {
             return res.status(401).json({ msg: "Unauthorized" });
         }
