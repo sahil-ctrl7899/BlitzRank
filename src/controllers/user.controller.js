@@ -89,14 +89,16 @@ class UserController {
         }
     }
 
-    async getUsers(req, res) {
-        try {
-            const users = await User.findAll();
-            res.json(users);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch users", error: err.message });
-        }
+  async getUsers(req, res) {
+    try {
+      const users = await User.findAll(({
+      attributes: ["id", "username", "role", "balance"]
+    }));
+    res.json(users);
+    } catch (err) {
+      res.status(500).json({ msg: "Failed to fetch users", error: err.message });
     }
+  }
 
     async getUserById(req, res) {
         try {
@@ -193,13 +195,14 @@ class UserController {
                 note: "User must re-login for new role to apply"
             });
 
-        } catch (err) {
-            res.status(500).json({
-                msg: "Failed to update role",
-                error: err.message
-            });
-        }
+    } catch (err) {
+      res.status(500).json({
+        msg: "Failed to update role",
+        error: err.message
+      });
     }
+  }
+  
 }
 
 module.exports = new UserController();
