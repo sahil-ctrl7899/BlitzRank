@@ -1,5 +1,5 @@
-const { DataTypes } = require("sequelize");
-const { sequelize } = require("../config/db");
+import { DataTypes } from "sequelize";
+import { sequelize } from "../config/db.js";
 
 const ScoreHistory = sequelize.define(
   "ScoreHistory",
@@ -26,4 +26,5 @@ const ScoreHistory = sequelize.define(
   }
 );
 
-module.exports = ScoreHistory;
+export default ScoreHistory;
+

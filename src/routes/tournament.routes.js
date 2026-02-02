@@ -1,46 +1,22 @@
-const router = require("express").Router();
-const controller = require("../controllers/tournament.controller");
-const auth = require("../middlewares/authmiddleware");
-const role = require("../middlewares/rolemiddleware");
+import { Router } from "express";
+import controller from "../controllers/tournament.controller.js";
+import auth from "../middlewares/authmiddleware.js";
+import role from "../middlewares/rolemiddleware.js";
 
-// PUBLIC (READ-ONLY)
+const router = Router();
 
+// PUBLIC
 router.get("/", controller.getTournaments);
 router.get("/:id", controller.getTournamentById);
 router.get("/:id/participants", controller.getParticipants);
 
-// ADMIN ONLY
-// Create tournament
-router.post(
-    "/",
-    auth,
-    role(["ADMIN"]),
-    controller.createTournament
-);
+// ADMIN
+router.post("/", auth, role(["ADMIN"]), controller.createTournament);
+router.patch("/:id/status", auth, role(["ADMIN"]), controller.updateStatus);
+router.delete("/:id/participants/:userId", auth, role(["ADMIN"]), controller.removeParticipant);
 
-// Change tournament status (OPEN → ACTIVE → COMPLETED)
-router.patch(
-    "/:id/status",
-    auth,
-    role(["ADMIN"]),
-    controller.updateStatus
-);
+// USER
+router.post("/:id/join", auth, role(["USER"]), controller.joinTournament);
 
-// Remove participant + refund
-router.delete(
-    "/:id/participants/:userId",
-    auth,
-    role(["ADMIN"]),
-    controller.removeParticipant
-);
+export default router;
 
-// USER ONLY
-// Join tournament (money transaction)
-router.post(
-    "/:id/join",
-    auth,
-    role(["USER"]),
-    controller.joinTournament
-);
-
-module.exports = router;

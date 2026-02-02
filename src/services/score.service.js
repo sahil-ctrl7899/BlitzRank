@@ -1,10 +1,10 @@
 // services/score.service.js
-const { sequelize } = require("../config/db");
-const {
+import { sequelize } from "../config/db.js";
+import {
   Tournament,
   Participant,
   ScoreHistory
-} = require("../models");
+} from "../models/index.js";
 
 class ScoreService {
 
@@ -59,5 +59,6 @@ class ScoreService {
   }
 }
 
-module.exports = new ScoreService();
+export default new ScoreService();
+
 

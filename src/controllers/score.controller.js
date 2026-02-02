@@ -1,5 +1,5 @@
 // controllers/score.controller.js
-const scoreService = require("../services/score.service");
+import scoreService from "../services/score.service.js";
 
 class ScoreController {
 
@@ -36,4 +36,4 @@ class ScoreController {
     }
 }
 
-module.exports = new ScoreController();
+export default new ScoreController();

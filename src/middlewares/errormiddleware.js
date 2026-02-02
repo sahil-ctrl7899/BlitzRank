@@ -1,6 +1,6 @@
-const logger = require("../utils/logger");
+import logger from "../utils/logger.js";
 
-module.exports = (err, req, res, next) => {
+export default (err, req, res, next) => {
   logger.error(err.message, {
     stack: err.stack,
     path: req.originalUrl,

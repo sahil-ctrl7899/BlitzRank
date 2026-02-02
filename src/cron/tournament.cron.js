@@ -1,6 +1,6 @@
-const cron = require("node-cron");
-const { Tournament } = require("../models");
-const { Op } = require("sequelize");
+import cron from "node-cron";
+import { Tournament } from "../models/index.js";
+import { Op } from "sequelize";
 
 // Run every minute
 cron.schedule("* * * * *", async () => {

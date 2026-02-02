@@ -1,12 +1,12 @@
+import { Router } from "express";
+import controller from "../controllers/score.controller.js";
+import auth from "../middlewares/authmiddleware.js";
+import role from "../middlewares/rolemiddleware.js";
 
-const router = require("express").Router();
-const controller = require("../controllers/score.controller");
-const auth = require("../middlewares/authmiddleware");
-const role = require("../middlewares/rolemiddleware");
+const router = Router();
 
-
-router.post("/submit", auth, role(["ADMIN", "GAME_SERVER"]), controller.submitScore);
+router.post("/submit",auth, role(["ADMIN", "GAME_SERVER"]),controller.submitScore);
 // router.post("/play", auth, role(["USER"]), controller.playGame);
-router.get("/history/:participantId", auth, role(["ADMIN"]), controller.getScoreHistory);
+router.get("/history/:participantId", auth,role(["ADMIN"]),controller.getScoreHistory);
 
-module.exports = router;
+export default router;

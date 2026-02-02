@@ -1,4 +1,4 @@
-module.exports = (roles = []) => {
+export default (roles = []) => {
     return (req, res, next) => {
         // console.log(req.user);
         if (!req.user || !req.user.role) {

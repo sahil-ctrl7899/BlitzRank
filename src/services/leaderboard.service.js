@@ -1,5 +1,5 @@
 // services/leaderboard.service.js
-const { Participant, User } = require("../models");
+import { Participant, User } from "../models/index.js";
 
 class LeaderboardService {
 
@@ -45,5 +45,6 @@ class LeaderboardService {
     }
 }
 
-module.exports = new LeaderboardService();
+export default new LeaderboardService();
+
 

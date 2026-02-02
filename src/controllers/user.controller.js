@@ -1,8 +1,8 @@
 // controllers/user.controller.js
-const { User, WalletTransaction } = require("../models");
-const walletService = require("../services/wallet.service");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+import { User, WalletTransaction } from "../models/index.js";
+import walletService from "../services/wallet.service.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
 const SECRET = process.env.JWT_SECRET || "MYSECRET123";
 const ALLOWED_ROLES = ["USER", "ADMIN", "GAME_SERVER"];
@@ -205,4 +205,4 @@ class UserController {
   
 }
 
-module.exports = new UserController();
+export default new UserController();

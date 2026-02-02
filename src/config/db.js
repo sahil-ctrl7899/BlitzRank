@@ -1,15 +1,14 @@
-const path = require("path");
-// require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
-const { Sequelize } = require("sequelize");
+import dotenv from "dotenv";
+dotenv.config();   // THIS LINE FIXES EVERYTHING
 
+import { Sequelize } from "sequelize";
 
-
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+export const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
   logging: false
 });
 
-const connectDB = async () => {
+export const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("✅ DB Connected");
@@ -19,6 +18,4 @@ const connectDB = async () => {
   }
 };
 
-//for checking at development
-// connectDB();
-module.exports = {sequelize,connectDB};
+

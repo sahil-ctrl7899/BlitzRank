@@ -1,5 +1,5 @@
 // controllers/leaderboard.controller.js
-const leaderboardService = require("../services/leaderboard.service");
+import leaderboardService from "../services/leaderboard.service.js"
 
 class LeaderboardController {
 
@@ -60,5 +60,5 @@ class LeaderboardController {
   }
 }
 
-module.exports = new LeaderboardController();
+export default new LeaderboardController();
 

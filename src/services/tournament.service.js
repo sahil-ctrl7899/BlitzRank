@@ -1,5 +1,5 @@
-const { sequelize } = require("../config/db");
-const { Tournament, Participant, User, WalletTransaction } = require("../models");
+import { sequelize } from "../config/db.js";
+import { Tournament, Participant, User, WalletTransaction } from "../models/index.js";
 
 class TournamentService {
 
@@ -164,4 +164,4 @@ class TournamentService {
   }
 }
 
-module.exports = new TournamentService();
+export default new TournamentService();

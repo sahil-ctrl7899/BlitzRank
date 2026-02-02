@@ -1,7 +1,7 @@
-const { sequelize } = require("../config/db");
-const { User, WalletTransaction } = require("../models");
+import { sequelize } from "../config/db.js";
+import { User, WalletTransaction } from "../models/index.js";
 
-exports.credit = async (userId, amount, reason) => {
+const credit = async (userId, amount, reason) => {
   return sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { transaction: t });
     if (!user) throw new Error("User not found");
@@ -23,7 +23,7 @@ exports.credit = async (userId, amount, reason) => {
   });
 };
 
-exports.debit = async (userId, amount, reason) => {
+const debit = async (userId, amount, reason) => {
   return sequelize.transaction(async (t) => {
     const user = await User.findByPk(userId, { transaction: t });
     if (!user) throw new Error("User not found");
@@ -48,3 +48,6 @@ exports.debit = async (userId, amount, reason) => {
     return { balance: user.balance };
   });
 };
+
+export default { credit, debit };
+

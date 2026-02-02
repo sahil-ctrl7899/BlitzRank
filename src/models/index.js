@@ -1,8 +1,8 @@
-const User = require("./Users");
-const Tournament = require("./Tournament");
-const Participant = require("./Participant");
-const ScoreHistory = require("./ScoreHistory");
-const WalletTransaction = require("./WalletTransaction");
+import User from "./Users.js";
+import Tournament from "./Tournament.js";
+import Participant from "./Participant.js";
+import ScoreHistory from "./ScoreHistory.js";
+import WalletTransaction from "./WalletTransaction.js";
 
 /* User Relations */
 User.hasMany(Participant, { foreignKey: "userId" });
@@ -22,10 +22,11 @@ ScoreHistory.belongsTo(Participant, { foreignKey: "participantId" });
 /* Wallet Relations */
 WalletTransaction.belongsTo(User, { foreignKey: "userId" });
 
-module.exports = {
+export {
   User,
   Tournament,
   Participant,
   ScoreHistory,
   WalletTransaction
 };
+

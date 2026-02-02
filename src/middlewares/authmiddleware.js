@@ -1,8 +1,9 @@
-const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+import jwt from "jsonwebtoken";
+import { User } from "../models/index.js";
+
 const SECRET = process.env.JWT_SECRET || "MYSECRET123";
 
-module.exports = async (req, res, next) => {
+const auth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
@@ -32,4 +33,6 @@ module.exports = async (req, res, next) => {
     return res.status(401).json({ msg: "Invalid or expired token" });
   }
 };
+
+export default auth;
 

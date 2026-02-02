@@ -1,5 +1,5 @@
 // controllers/tournament.controller.js
-const tournamentService = require("../services/tournament.service");
+import tournamentService from "../services/tournament.service.js";
 
 class TournamentController {
 
@@ -106,6 +106,6 @@ class TournamentController {
     }
 }
 
-module.exports = new TournamentController();
+export default new TournamentController();
 
 
