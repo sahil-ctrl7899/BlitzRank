@@ -3,12 +3,11 @@ const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const errorHandler = require("./middlewares/errormiddleware");
+const cors = require("cors");
 
 const app = express();
 
-
-console.log("APP LOADED");
-
+app.use(cors());
 app.use(express.json());
 
 // create stream for access.log
