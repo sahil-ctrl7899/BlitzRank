@@ -80,27 +80,27 @@ class TournamentService {
 
   async joinTournament(userId, tournamentId) {
     return sequelize.transaction(async (t) => {
-      // 1️⃣ Fetch user
+      // Fetch user
       const user = await User.findByPk(userId, { transaction: t });
       if (!user) throw new Error("User not found");
 
-      // 🔒 DOUBLE SAFETY CHECK
+      // DOUBLE SAFETY CHECK
       if (user.role !== "USER") {
         throw new Error("Only USER accounts can join tournaments");
       }
 
-      // 2️⃣ Fetch tournament
+      // Fetch tournament
       const tournament = await Tournament.findByPk(tournamentId, {
         transaction: t
       });
       if (!tournament) throw new Error("Tournament not found");
 
-      // 3️⃣ Check tournament status
+      // Check tournament status
       if (tournament.status !== "OPEN") {
         throw new Error("Tournament not open for joining");
       }
 
-      // 4️⃣ Check duplicate join
+      // Check duplicate join
       const alreadyJoined = await Participant.findOne({
         where: { userId, tournamentId },
         transaction: t
@@ -110,16 +110,16 @@ class TournamentService {
         throw new Error("User already joined this tournament");
       }
 
-      // 5️⃣ Check balance
+      // Check balance
       if (Number(user.balance) < Number(tournament.entryFee)) {
         throw new Error("Insufficient balance");
       }
 
-      // 6️⃣ Deduct balance
+      // Deduct balance
       user.balance = Number(user.balance) - Number(tournament.entryFee);
       await user.save({ transaction: t });
 
-      // 7️⃣ Create wallet transaction
+      // Create wallet transaction
       await WalletTransaction.create(
         {
           userId,
@@ -131,7 +131,7 @@ class TournamentService {
         { transaction: t }
       );
 
-      // 8️⃣ Add participant
+      //  Add participant
       const participant = await Participant.create(
         {
           userId,
@@ -141,7 +141,7 @@ class TournamentService {
         { transaction: t }
       );
 
-      // 9️⃣ Success
+      // Success
       return {
         message: "Joined tournament successfully",
         participantId: participant.id,
@@ -173,11 +173,11 @@ class TournamentService {
 
       const user = await User.findByPk(userId, { transaction: t });
 
-      // 1️⃣ Refund entry fee
+      //  Refund entry fee
       user.balance = Number(user.balance) + Number(tournament.entryFee);
       await user.save({ transaction: t });
 
-      // 2️⃣ Wallet log
+      // Wallet log
       await WalletTransaction.create(
         {
           userId,
@@ -189,7 +189,7 @@ class TournamentService {
         { transaction: t }
       );
 
-      // 3️⃣ Remove participant
+      // Remove participant
       await participant.destroy({ transaction: t });
 
       return {
