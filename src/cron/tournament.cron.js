@@ -6,8 +6,8 @@ import { Op } from "sequelize";
 cron.schedule("* * * * *", async () => {
     try {
         const now = new Date();
-        // console.log(now);
-        // 1️⃣ OPEN → ACTIVE
+
+        // OPEN → ACTIVE conversion...
         await Tournament.update(
             { status: "ACTIVE" },
             {
@@ -17,7 +17,7 @@ cron.schedule("* * * * *", async () => {
                 }
             }
         );
-        // 2️⃣ ACTIVE → COMPLETED
+        // ACTIVE → COMPLETED conversion..
         await Tournament.update(
             { status: "COMPLETED" },
             {
@@ -27,8 +27,8 @@ cron.schedule("* * * * *", async () => {
                 }
             }
         );
-        console.log("⏱ Tournament cron executed");
+        console.log("->Tournament cron executed");
     } catch (err) {
-        console.error("❌ Tournament cron error:", err.message);
+        console.error("Tournament cron error:", err.message);
     }
 });

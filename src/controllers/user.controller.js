@@ -3,6 +3,7 @@ import { User, WalletTransaction } from "../models/index.js";
 import walletService from "../services/wallet.service.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import redis from "../config/redis.js";
 
 const SECRET = process.env.JWT_SECRET || "MYSECRET123";
 const ALLOWED_ROLES = ["USER", "ADMIN", "GAME_SERVER"];
@@ -89,21 +90,36 @@ class UserController {
         }
     }
 
-  async getUsers(req, res) {
-    try {
-      const users = await User.findAll(({
-      attributes: ["id", "username", "role", "balance"]
-    }));
-    res.json(users);
-    } catch (err) {
-      res.status(500).json({ msg: "Failed to fetch users", error: err.message });
+    async getUsers(req, res) {
+        try {
+            const cacheKey = "users:all";
+            const cachedUsers = await redis.get(cacheKey);
+            if (cachedUsers) {
+                return res.json(JSON.parse(cachedUsers));
+            }
+
+            const users = await User.findAll(({
+                attributes: ["id", "username", "role", "balance"]
+            }));
+
+            await redis.setEx(cacheKey, 60, JSON.stringify(users));
+            res.json(users);
+        } catch (err) {
+            res.status(500).json({ msg: "Failed to fetch users", error: err.message });
+        }
     }
-  }
 
     async getUserById(req, res) {
         try {
+            const userId = req.params.id;
+            const cacheKey = `user:${userId}`;
+            const cachedUser = await redis.get(cacheKey);
+            if (cachedUser) {
+                return res.json(JSON.parse(cachedUser));
+            }
             const user = await User.findByPk(req.params.id);
             if (!user) return res.status(404).json({ msg: "User not found" });
+            await redis.setEx(cacheKey, 60, JSON.stringify(user));
             res.json(user);
         } catch (err) {
             res.status(500).json({ msg: "Failed to fetch user", error: err.message });
@@ -112,8 +128,15 @@ class UserController {
 
     async getBalance(req, res) {
         try {
+            const userId = req.params.id;
+            const cacheKey = `user:${userId}:balance`;
+            const cachedBalance = await redis.get(cacheKey);
+            if (cachedBalance) {
+                return res.json({ balance: cachedBalance });
+            }
             const user = await User.findByPk(req.params.id);
             if (!user) return res.status(404).json({ msg: "User not found" });
+            await redis.setEx(cacheKey, 30, user.balance.toString());
             res.json({ balance: user.balance });
         } catch (err) {
             res.status(500).json({ msg: "Failed to fetch balance", error: err.message });
@@ -150,10 +173,18 @@ class UserController {
 
     async getWalletTransactions(req, res) {
         try {
+            const cacheKey = `user:${req.params.id}:transactions`;
+
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                return res.json(JSON.parse(cached));
+            }
             const txns = await WalletTransaction.findAll({
                 where: { userId: req.params.id },
                 order: [["createdAt", "DESC"]],
             });
+            await redis.setEx(cacheKey, 30, JSON.stringify(txns));
+
             res.json(txns);
         } catch (err) {
             res.status(500).json({ msg: "Failed to fetch transactions", error: err.message });
@@ -195,14 +226,14 @@ class UserController {
                 note: "User must re-login for new role to apply"
             });
 
-    } catch (err) {
-      res.status(500).json({
-        msg: "Failed to update role",
-        error: err.message
-      });
+        } catch (err) {
+            res.status(500).json({
+                msg: "Failed to update role",
+                error: err.message
+            });
+        }
     }
-  }
-  
+
 }
 
 export default new UserController();

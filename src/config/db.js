@@ -10,9 +10,9 @@ export const sequelize = new Sequelize(process.env.DATABASE_URL, {
 export const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log("✅ DB Connected");
+    console.log("DB Connected successfully");
   } catch (err) {
-    console.error("❌ DB Connection Failed:", err.message);
+    console.error("DB Connection Failed:", err.message);
     process.exit(1); 
   }
 };
