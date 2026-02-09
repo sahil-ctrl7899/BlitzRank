@@ -1,10 +1,9 @@
-import path from "path";
 import dotenv from "dotenv";
 dotenv.config(); 
-import { fileURLToPath } from "url";
-
-import app from "./app.js";
+import app from "./app.js"
 import { connectDB } from "./config/db.js";
+import path from "path";
+import { fileURLToPath } from "url";;
 import "./cron/tournament.cron.js";
 
 // Fix for __dirname in ES6

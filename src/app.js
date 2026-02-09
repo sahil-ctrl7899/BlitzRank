@@ -3,7 +3,6 @@ import morgan from "morgan";
 import fs from "fs";
 import path from "path";
 import errorHandler from "./middlewares/errormiddleware.js";
-
 import userRoutes from "./routes/user.routes.js";
 import tournamentRoutes from "./routes/tournament.routes.js";
 import scoreRoutes from "./routes/score.routes.js";

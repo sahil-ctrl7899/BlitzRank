@@ -1,5 +1,6 @@
 import { sequelize } from "../config/db.js";
 import { Tournament, Participant, User, WalletTransaction } from "../models/index.js";
+import redis from "../config/redis.js";
 
 class TournamentService {
 
@@ -13,11 +14,35 @@ class TournamentService {
   }
 
   async getAll() {
-    return Tournament.findAll({ order: [["createdAt", "DESC"]] });
+    const cacheKey = "tournaments:all";
+    const cacheData = await redis.get(cacheKey);
+
+    if(cacheData){
+      // console.log("Tm form cache");
+      return JSON.parse(cacheData);
+    }
+
+    const tournaments = await Tournament.findAll({ order: [["createdAt", "DESC"]] });
+
+    await redis.setEx(cacheKey, 60, JSON.stringify(tournaments));
+
+    // console.log("Tm form db");
+    return tournaments;
   }
 
   async getById(id) {
-    return Tournament.findByPk(id);
+    const cacheKey  = `tournaments:${id}`;
+    const cacheData = await redis.get(cacheKey);
+
+    if(cacheData){
+      return JSON.parse(cacheData);
+    }
+
+    const tournament = await Tournament.findByPk(id);
+
+    await redis.setEx(cacheKey, 60, JSON.stringify(tournament));
+
+    return tournament;
   }
 
   async updateStatus(id, status) {
@@ -31,15 +56,27 @@ class TournamentService {
   }
 
   async getParticipants(tournamentId) {
-    return Participant.findAll({
-      where: { tournamentId },
-      include: {
-        model: User,
-        attributes: ["id", "username"]
-      },
-      order: [["currentScore", "DESC"]]
-    });
+  const cacheKey = `tournament:${tournamentId}:participants`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
   }
+
+  const participants = await Participant.findAll({ where: { tournamentId },
+    include: {
+      model: User,
+      attributes: ["id", "username"]
+    },
+    order: [["currentScore", "DESC"]],
+    raw: true
+  });
+
+  await redis.setEx(cacheKey, 60, JSON.stringify(participants));
+
+  return participants;
+}
+
 
   async joinTournament(userId, tournamentId) {
     return sequelize.transaction(async (t) => {
