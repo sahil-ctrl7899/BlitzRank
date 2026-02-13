@@ -5,6 +5,8 @@ import {
   Participant,
   ScoreHistory
 } from "../models/index.js";
+import { leaderboardQueue } from "../queues/leaderboard.queue.js";
+
 
 class ScoreService {
 
@@ -41,6 +43,20 @@ class ScoreService {
           scoreAdded: score
         },
         { transaction: t }
+      );
+
+      await leaderboardQueue.add(
+        "recalculate",
+        { tournamentId },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000
+          },
+          removeOnComplete: true,
+          removeOnFail: 100
+        }
       );
 
       return {
