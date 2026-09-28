@@ -1,239 +1,57 @@
-// controllers/user.controller.js
-import { User, WalletTransaction } from "../models/index.js";
+import { User } from "../models/index.js";
 import walletService from "../services/wallet.service.js";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
-import redis from "../config/redis.js";
+import authService from "../services/auth.service.js";
+import { cached, keys } from "../lib/cache.js";
+import { forbidden, notFound } from "../errors/AppError.js";
 
-const SECRET = process.env.JWT_SECRET || "MYSECRET123";
-const ALLOWED_ROLES = ["USER", "ADMIN", "GAME_SERVER"];
+/** Users may read their own record; only admins may read anyone else's (no IDOR). */
+export const assertSelfOrAdmin = (req) => {
+  if (req.user.role !== "ADMIN" && req.user.id !== Number(req.params.id)) throw forbidden();
+};
 
-class UserController {
+export const listUsers = async (req, res) => {
+  const { limit, offset } = req.valid.query;
+  const { rows, count } = await User.findAndCountAll({
+    attributes: ["id", "username", "role", "balance"], order: [["id", "ASC"]], limit, offset, raw: true
+  });
+  res.json({ total: count, limit, offset, users: rows });
+};
 
-    async createUser(req, res) {
-        try {
-            const { username, password, role } = req.body;
+export const getUser = async (req, res) => {
+  assertSelfOrAdmin(req);
+  const id = req.valid.params.id;
+  // Explicit attribute list: the password hash must never reach a response or the cache.
+  const user = await cached(keys.user(id), 60, () =>
+    User.findByPk(id, { attributes: ["id", "username", "role", "balance", "createdAt"], raw: true })
+  );
+  if (!user) throw notFound("User not found");
+  res.json(user);
+};
 
-            if (!username || !password) {
-                return res.status(400).json({ msg: "Username and password are required" });
-            }
+// Balances are money: always read from Postgres, never from a cache that can be stale.
+export const getBalance = async (req, res) => {
+  assertSelfOrAdmin(req);
+  res.json(await walletService.getBalance(req.valid.params.id));
+};
 
-            // Default role = USER (never trust client blindly)
-            const userRole = role === "ADMIN" || role === "GAME_SERVER"
-                ? role
-                : "USER";
+export const credit = async (req, res) => {
+  const { amount, reason = "ADMIN_CREDIT" } = req.valid.body;
+  res.json(await walletService.credit(req.valid.params.id, amount, reason));
+};
 
-            const hashedPassword = await bcrypt.hash(password, 10);
+export const debit = async (req, res) => {
+  const { amount, reason = "ADMIN_DEBIT" } = req.valid.body;
+  res.json(await walletService.debit(req.valid.params.id, amount, reason));
+};
 
-            const user = await User.create({
-                username,
-                password: hashedPassword,
-                role: userRole,
-                balance: 0
-            });
+export const transactions = async (req, res) => {
+  const { rows, count } = await walletService.transactions(req.valid.params.id, req.valid.query);
+  res.json({ total: count, ...req.valid.query, transactions: rows });
+};
 
-            const token = jwt.sign(
-                {
-                    id: user.id,
-                    role: user.role
-                },
-                SECRET,
-                { expiresIn: "1d" }
-            );
-
-            res.status(201).json({
-                msg: "User created successfully",
-                userId: user.id,
-                role: user.role,
-                token
-            });
-        } catch (err) {
-            res.status(500).json({
-                msg: "Failed to create user",
-                error: err.message
-            });
-        }
-    }
-
-    async loginUser(req, res) {
-        try {
-            const { username, password } = req.body;
-
-            const user = await User.findOne({ where: { username } });
-            if (!user) {
-                return res.status(404).json({ msg: "User not found" });
-            }
-
-            const match = await bcrypt.compare(password, user.password);
-            if (!match) {
-                return res.status(401).json({ msg: "Invalid password" });
-            }
-
-            const token = jwt.sign(
-                {
-                    id: user.id,
-                    role: user.role
-                },
-                SECRET,
-                { expiresIn: "1d" }
-            );
-
-            res.json({
-                token,
-                role: user.role
-            });
-        } catch (err) {
-            res.status(500).json({
-                msg: "Login failed",
-                error: err.message
-            });
-        }
-    }
-
-    async getUsers(req, res) {
-        try {
-            const cacheKey = "users:all";
-            const cachedUsers = await redis.get(cacheKey);
-            if (cachedUsers) {
-                return res.json(JSON.parse(cachedUsers));
-            }
-
-            const users = await User.findAll(({
-                attributes: ["id", "username", "role", "balance"]
-            }));
-
-            await redis.setEx(cacheKey, 60, JSON.stringify(users));
-            res.json(users);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch users", error: err.message });
-        }
-    }
-
-    async getUserById(req, res) {
-        try {
-            const userId = req.params.id;
-            const cacheKey = `user:${userId}`;
-            const cachedUser = await redis.get(cacheKey);
-            if (cachedUser) {
-                return res.json(JSON.parse(cachedUser));
-            }
-            const user = await User.findByPk(req.params.id);
-            if (!user) return res.status(404).json({ msg: "User not found" });
-            await redis.setEx(cacheKey, 60, JSON.stringify(user));
-            res.json(user);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch user", error: err.message });
-        }
-    }
-
-    async getBalance(req, res) {
-        try {
-            const userId = req.params.id;
-            const cacheKey = `user:${userId}:balance`;
-            const cachedBalance = await redis.get(cacheKey);
-            if (cachedBalance) {
-                return res.json({ balance: cachedBalance });
-            }
-            const user = await User.findByPk(req.params.id);
-            if (!user) return res.status(404).json({ msg: "User not found" });
-            await redis.setEx(cacheKey, 30, user.balance.toString());
-            res.json({ balance: user.balance });
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch balance", error: err.message });
-        }
-    }
-
-    async creditWallet(req, res) {
-        try {
-            const { amount, reason = "ADMIN_CREDIT" } = req.body || {};
-            if (!amount || amount <= 0) {
-                return res.status(400).json({ msg: "Valid amount is required" });
-            }
-
-            const result = await walletService.credit(req.params.id, amount, reason);
-            res.json(result);
-        } catch (err) {
-            res.status(400).json({ msg: err.message || "Credit failed" });
-        }
-    }
-
-    async debitWallet(req, res) {
-        try {
-            const { amount, reason = "ADMIN_DEBIT" } = req.body || {};
-            if (!amount || amount <= 0) {
-                return res.status(400).json({ msg: "Valid amount is required" });
-            }
-
-            const result = await walletService.debit(req.params.id, amount, reason);
-            res.json(result);
-        } catch (err) {
-            res.status(400).json({ msg: err.message || "Debit failed" });
-        }
-    }
-
-    async getWalletTransactions(req, res) {
-        try {
-            const cacheKey = `user:${req.params.id}:transactions`;
-
-            const cached = await redis.get(cacheKey);
-            if (cached) {
-                return res.json(JSON.parse(cached));
-            }
-            const txns = await WalletTransaction.findAll({
-                where: { userId: req.params.id },
-                order: [["createdAt", "DESC"]],
-            });
-            await redis.setEx(cacheKey, 30, JSON.stringify(txns));
-
-            res.json(txns);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch transactions", error: err.message });
-        }
-    }
-
-    async updateUserRole(req, res) {
-        try {
-            const { id } = req.params;
-            const { role } = req.body;
-
-            if (!ALLOWED_ROLES.includes(role)) {
-                return res.status(400).json({
-                    msg: "Invalid role",
-                    allowed: ALLOWED_ROLES
-                });
-            }
-
-            const user = await User.findByPk(id);
-
-            if (!user) {
-                return res.status(404).json({ msg: "User not found" });
-            }
-
-            // Prevent admin from demoting themselves
-            if (req.user.id === user.id && role !== user.role) {
-                return res.status(403).json({
-                    msg: "You cannot change your own role"
-                });
-            }
-
-            user.role = role;
-            await user.save();
-
-            return res.json({
-                msg: "Role updated successfully",
-                userId: user.id,
-                newRole: user.role,
-                note: "User must re-login for new role to apply"
-            });
-
-        } catch (err) {
-            res.status(500).json({
-                msg: "Failed to update role",
-                error: err.message
-            });
-        }
-    }
-
-}
-
-export default new UserController();
+export const updateRole = async (req, res) => {
+  const { id } = req.valid.params;
+  if (req.user.id === id) throw forbidden("You cannot change your own role");
+  if (!(await authService.setRole(id, req.valid.body.role))) throw notFound("User not found");
+  res.json({ userId: id, newRole: req.valid.body.role });
+};

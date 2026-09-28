@@ -1,38 +1,34 @@
-import jwt from "jsonwebtoken";
 import { User } from "../models/index.js";
+import { verifyAccess } from "../services/auth.service.js";
+import { cached, keys } from "../lib/cache.js";
+import { unauthorized } from "../errors/AppError.js";
+import { requestContext } from "../utils/logger.js";
 
-const SECRET = process.env.JWT_SECRET || "MYSECRET123";
+/**
+ * Stateless JWT verification + a 60s cached lookup of the user's *current* role.
+ * That keeps role changes effective immediately (cache is invalidated on change) without
+ * a Postgres round trip on every request.
+ */
+export default async function auth(req, _res, next) {
+  const header = req.headers.authorization ?? "";
+  const [scheme, token] = header.split(" ");
+  if (scheme !== "Bearer" || !token) throw unauthorized("Missing bearer token");
 
-const auth = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ msg: "No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
+  let payload;
   try {
-    const decoded = jwt.verify(token, SECRET);
-
-    // Fetch the latest user data from the database
-    const user = await User.findByPk(decoded.id);
-
-    if (!user) {
-      return res.status(401).json({ msg: "User no longer exists" });
-    }
-
-    // Set the full user object on the request
-    req.user = user;
-    req.userId = user.id;
-    
-    // console.log("Authenticated User:", { id: user.id, role: user.role });
-    
-    next();
-  } catch (err) {
-    return res.status(401).json({ msg: "Invalid or expired token" });
+    payload = verifyAccess(token);
+  } catch {
+    throw unauthorized("Invalid or expired token");
   }
-};
 
-export default auth;
+  const user = await cached(keys.authUser(payload.sub), 60, () =>
+    User.findByPk(payload.sub, { attributes: ["id", "username", "role"], raw: true })
+  );
+  if (!user) throw unauthorized("User no longer exists");
 
+  req.user = user;
+  req.userId = user.id;
+  const ctx = requestContext.getStore();
+  if (ctx) ctx.userId = user.id;
+  next();
+}

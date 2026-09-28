@@ -1,27 +1,34 @@
-import dotenv from "dotenv";
-dotenv.config(); 
-import app from "./app.js"
-import { connectDB } from "./config/db.js";
-import path from "path";
-import { fileURLToPath } from "url";;
-import "./cron/tournament.cron.js";
+import { env } from "./config/env.js";
+import createApp from "./app.js";
+import { connectDB, sequelize } from "./config/db.js";
+import { redis } from "./config/redis.js";
+import { startEventBus, stopEventBus } from "./lib/events.js";
+import { closeQueues } from "./queues/index.js";
+import { startWorkers, stopWorkers } from "./workers/index.js";
+import logger from "./utils/logger.js";
 
-// Fix for __dirname in ES6
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+await connectDB();
+await startEventBus();
+// Dev convenience: run background workers inside the API process. In production run `npm run worker`.
+const workers = process.env.EMBEDDED_WORKERS === "true" ? await startWorkers() : [];
 
-// Load env file
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+const server = createApp().listen(env.PORT, () => logger.info(`API listening on :${env.PORT}`));
 
-const PORT = process.env.PORT || 3000;
-
-(async () => {
-  await connectDB();
-
-  app.listen(PORT, () => {
-    console.log(`Server running on port -> ${PORT}`);
-  });
-})();
-
-
-
+// Graceful shutdown: stop accepting connections, let in-flight requests + jobs finish, then close deps.
+let closing = false;
+async function shutdown(signal) {
+  if (closing) return;
+  closing = true;
+  logger.info(`${signal} received, shutting down`);
+  const force = setTimeout(() => process.exit(1), 15_000).unref();
+  await new Promise((resolve) => { server.close(resolve); server.closeIdleConnections?.(); });
+  await stopWorkers(workers);
+  await closeQueues();
+  await stopEventBus();
+  await redis.quit().catch(() => {});
+  await sequelize.close();
+  clearTimeout(force);
+  process.exit(0);
+}
+["SIGTERM", "SIGINT"].forEach((s) => process.on(s, () => shutdown(s)));
+process.on("unhandledRejection", (err) => logger.error("unhandled rejection", { error: String(err), stack: err?.stack }));

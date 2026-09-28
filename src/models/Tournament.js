@@ -34,6 +34,19 @@ const Tournament = sequelize.define(
       type: DataTypes.ENUM("OPEN", "ACTIVE", "COMPLETED"),
       allowNull: false,
       defaultValue: "OPEN"
+    },
+
+    // Sum of entry fees currently held; maintained atomically on join / removal.
+    prizePool: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+      defaultValue: 0
+    },
+
+    payoutStatus: {
+      type: DataTypes.ENUM("PENDING", "PROCESSING", "DONE"),
+      allowNull: false,
+      defaultValue: "PENDING"
     }
   },
   {

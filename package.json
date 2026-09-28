@@ -1,12 +1,20 @@
 {
   "name": "myblitzrank",
   "version": "1.0.0",
-  "description": "This is the practice project",
-  "main": "index.js",
+  "description": "Real-time tournament leaderboard & wallet backend: Express, PostgreSQL, Redis, BullMQ",
+  "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ./src/server.js"
+    "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "dev": "EMBEDDED_WORKERS=true node --watch src/server.js",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:seed": "sequelize-cli db:seed:all",
+    "db:reset": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && sequelize-cli db:seed:all",
+    "create-admin": "node scripts/create-admin.js",
+    "test": "NODE_ENV=test node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "test:unit": "NODE_ENV=test node --test \"test/unit/*.test.js\"",
+    "loadtest": "node scripts/loadtest.js"
   },
   "repository": {
     "type": "git",
@@ -20,17 +28,24 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "helmet": "^8.3.0",
     "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
-    "node-cron": "^4.2.1",
     "pg": "^8.17.2",
     "pg-hstore": "^2.3.4",
-    "redis": "^5.10.0",
+    "prom-client": "^15.1.3",
     "sequelize": "^6.37.7",
-    "winston": "^3.19.0"
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.19.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "sequelize-cli": "^6.6.5"
+    "sequelize-cli": "^6.6.5",
+    "supertest": "^7.3.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
