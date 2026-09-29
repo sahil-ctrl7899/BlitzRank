@@ -18,6 +18,12 @@ const ScoreHistory = sequelize.define(
     scoreAdded: {
       type: DataTypes.DECIMAL(12, 4),
       allowNull: false
+    },
+
+    // Unique (partial index) -> a retried submission can never be applied twice.
+    idempotencyKey: {
+      type: DataTypes.STRING(128),
+      allowNull: true
     }
   },
   {

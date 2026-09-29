@@ -1,29 +1,20 @@
 import { Router } from "express";
-import userController from "../controllers/user.controller.js";
+import * as c from "../controllers/user.controller.js";
 import auth from "../middlewares/authmiddleware.js";
 import role from "../middlewares/rolemiddleware.js";
+import validate from "../middlewares/validate.js";
+import { idParam, users as s } from "../validators/schemas.js";
 
 const router = Router();
+const admin = [auth, role(["ADMIN"])];
 
-// Public
-router.post("/signup", userController.createUser);
-router.post("/login", userController.loginUser);
+router.get("/", ...admin, validate({ query: s.page }), c.listUsers);
+router.get("/:id", auth, validate({ params: idParam }), c.getUser);
+router.get("/:id/balance", auth, validate({ params: idParam }), c.getBalance);
 
-// Protected
-router.get("/profile", auth, (req, res) => {
-  res.json({
-    msg: "You are authenticat+d",
-    userId: req.userId
-  });
-});
-router.get("/", auth, userController.getUsers);
-router.get("/:id", auth, userController.getUserById);
-router.get("/:id/balance", auth, userController.getBalance);
-
-// Wallet (ADMIN only)
-router.put("/:id/role", auth, role(["ADMIN"]), userController.updateUserRole);
-router.post("/:id/credit", auth, role(["ADMIN"]), userController.creditWallet);
-router.post("/:id/debit", auth, role(["ADMIN"]), userController.debitWallet);
-router.get("/:id/transactions", auth, role(["ADMIN"]), userController.getWalletTransactions);
+router.put("/:id/role", ...admin, validate({ params: idParam, body: s.role }), c.updateRole);
+router.post("/:id/credit", ...admin, validate({ params: idParam, body: s.wallet }), c.credit);
+router.post("/:id/debit", ...admin, validate({ params: idParam, body: s.wallet }), c.debit);
+router.get("/:id/transactions", ...admin, validate({ params: idParam, query: s.page }), c.transactions);
 
 export default router;

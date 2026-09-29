@@ -1,111 +1,25 @@
-// controllers/tournament.controller.js
 import tournamentService from "../services/tournament.service.js";
+import { payoutsFor } from "../services/payout.service.js";
 
-class TournamentController {
+export const create = async (req, res) => res.status(201).json(await tournamentService.create(req.valid.body));
+export const list = async (req, res) => res.json(await tournamentService.list(req.valid.query));
+export const getById = async (req, res) => res.json(await tournamentService.getById(req.valid.params.id));
 
-    async createTournament(req, res) {
-        try {
-            const tournament = await tournamentService.create(req.body);
-            res.status(201).json(tournament);
-        } catch (err) {
-            res.status(400).json({ msg: "Failed to create tournament", error: err.message });
-        }
-    }
+export const updateStatus = async (req, res) =>
+  res.json(await tournamentService.transition(req.valid.params.id, req.valid.body.status));
 
-    async getTournaments(req, res) {
-        try {
-            const tournaments = await tournamentService.getAll();
-            res.json(tournaments);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch tournaments", error: err.message });
-        }
-    }
+export const participants = async (req, res) => {
+  const data = await tournamentService.getParticipants(req.valid.params.id);
+  res.json({ count: data.length, participants: data });
+};
 
-    async getTournamentById(req, res) {
-        try {
-            const tournament = await tournamentService.getById(req.params.id);
-            if (!tournament) return res.status(404).json({ msg: "Not found" });
-            res.json(tournament);
-        } catch (err) {
-            res.status(500).json({ msg: "Failed to fetch tournament", error: err.message });
-        }
-    }
+export const payouts = async (req, res) => res.json(await payoutsFor(req.valid.params.id));
 
-    async updateStatus(req, res) {
-        try {
-            const { status } = req.body;
-            if (!status) {
-                return res.status(400).json({ msg: "Status is required" });
-            }
+// userId comes ONLY from the verified token, never from the request body.
+export const join = async (req, res) =>
+  res.json(await tournamentService.joinTournament(req.user.id, req.valid.params.id));
 
-            const tournament = await tournamentService.updateStatus(
-                req.params.id,
-                status
-            );
-            res.json(tournament);
-        } catch (err) {
-            res.status(400).json({ msg: "Failed to update status", error: err.message });
-        }
-    }
-
-    async getParticipants(req, res) {
-        try {
-            const data = await tournamentService.getParticipants(req.params.id);
-
-            if (!data || data.length === 0) {
-                return res.json({
-                    msg: "No participants found for this tournament",
-                    participants: []
-                });
-            }
-            res.json({
-                count: data.length,
-                participants: data
-            });
-        } catch (err) {
-            res.status(500).json({
-                msg: "Failed to fetch participants",
-                error: err.message
-            });
-        }
-    }
-
-
-    async joinTournament(req, res) {
-        try {
-            const tournamentId = req.params.id;
-
-            // 🔐 take userId ONLY from JWT
-            const userId = req.user.id;
-
-            const result = await tournamentService.joinTournament(
-                userId,
-                tournamentId
-            );
-
-            res.json(result);
-        } catch (err) {
-            res.status(400).json({ msg: err.message });
-        }
-    }
-
-    async removeParticipant(req, res) {
-        try {
-
-            const { id: tournamentId, userId } = req.params;
-
-            const result = await tournamentService.removeParticipant(
-                userId,
-                tournamentId
-            );
-
-            res.json(result);
-        } catch (err) {
-            res.status(400).json({ msg: err.message });
-        }
-    }
-}
-
-export default new TournamentController();
-
-
+export const removeParticipant = async (req, res) => {
+  const { id, userId } = req.valid.params;
+  res.json(await tournamentService.removeParticipant(userId, id));
+};
