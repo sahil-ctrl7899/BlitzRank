@@ -1,0 +1,50 @@
+# docker compose up --build     -> API on :3000 (Swagger UI at /docs), Prometheus on :9090
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: blitz, POSTGRES_PASSWORD: blitz, POSTGRES_DB: blitzrank }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U blitz -d blitzrank"], interval: 5s, timeout: 3s, retries: 10 }
+
+  redis:
+    image: redis:7-alpine
+    # AOF so queued jobs and leaderboards survive a restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 10 }
+
+  migrate:
+    build: .
+    command: ["npx", "sequelize-cli", "db:migrate"]
+    environment: &env
+      NODE_ENV: production
+      DATABASE_URL: postgres://blitz:blitz@postgres:5432/blitzrank
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-secret-change-me-0123456789}
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+
+  api:
+    build: .
+    environment: *env
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    deploy: { replicas: 1 }   # stateless: scale with `docker compose up --scale api=3` behind a load balancer
+
+  worker:
+    build: .
+    command: ["node", "src/worker.js"]
+    environment: *env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes: ["./docs/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    depends_on: [api]
+
+volumes: { pgdata: {}, redisdata: {} }

@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: BlitzRank API
+  version: 2.0.0
+  description: |
+    Tournament + wallet + real-time leaderboard backend.
+
+    **Auth:** `POST /auth/login` returns a short-lived access token (send as `Authorization: Bearer`) and a
+    rotating refresh token. **Idempotency:** `POST /score/submit` accepts an `Idempotency-Key` header; retries with
+    the same key are applied exactly once. **Errors** share one shape: `{ error: { code, message, details, requestId } }`.
+servers:
+  - url: http://localhost:3000
+tags:
+  - { name: Auth }
+  - { name: Users & Wallet }
+  - { name: Tournaments }
+  - { name: Scores }
+  - { name: Leaderboard }
+  - { name: Ops }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: NOT_FOUND }
+            message: { type: string }
+            details: { type: array, items: { type: object } }
+            requestId: { type: string }
+    Tokens:
+      type: object
+      properties:
+        user: { type: object, properties: { id: { type: integer }, username: { type: string }, role: { type: string, enum: [USER, ADMIN, GAME_SERVER] } } }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        expiresIn: { type: string, example: 15m }
+    Credentials:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 32 }
+        password: { type: string, minLength: 8, maxLength: 72 }
+    RefreshBody:
+      type: object
+      required: [refreshToken]
+      properties: { refreshToken: { type: string } }
+    Amount:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, example: 25.5, description: Positive, max 2 decimals }
+        reason: { type: string }
+    TournamentInput:
+      type: object
+      required: [name, entryFee, startTime, endTime]
+      properties:
+        name: { type: string }
+        entryFee: { type: number, example: 10 }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+    ScoreSubmit:
+      type: object
+      required: [userId, tournamentId, betAmount, winAmount]
+      properties:
+        userId: { type: integer }
+        tournamentId: { type: integer }
+        betAmount: { type: number, exclusiveMinimum: 0 }
+        winAmount: { type: number, minimum: 0 }
+  parameters:
+    id: { name: id, in: path, required: true, schema: { type: integer } }
+    tournamentId: { name: tournamentId, in: path, required: true, schema: { type: integer } }
+    limit: { name: limit, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+    offset: { name: offset, in: query, schema: { type: integer, default: 0 } }
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+security:
+  - bearer: []
+paths:
+  /auth/signup:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register a USER account (role is never client controlled)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Log in (rate limited per IP + username)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Rotate a refresh token. Re-using an old one revokes the whole session family.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RefreshBody' } } } }
+      responses:
+        '200': { description: New token pair, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Revoke the session that owns this refresh token
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RefreshBody' } } } }
+      responses: { '204': { description: Logged out } }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses: { '200': { description: OK }, '401': { $ref: '#/components/responses/Error' } }
+  /users:
+    get:
+      tags: [Users & Wallet]
+      summary: List users (ADMIN)
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error' } }
+  /users/{id}:
+    get:
+      tags: [Users & Wallet]
+      summary: Get a user (self or ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' } }
+  /users/{id}/balance:
+    get:
+      tags: [Users & Wallet]
+      summary: Live balance, read from Postgres (self or ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: OK } }
+  /users/{id}/role:
+    put:
+      tags: [Users & Wallet]
+      summary: Change role (ADMIN, effective immediately)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { role: { type: string, enum: [USER, ADMIN, GAME_SERVER] } } } } } }
+      responses: { '200': { description: OK } }
+  /users/{id}/credit:
+    post:
+      tags: [Users & Wallet]
+      summary: Credit wallet (ADMIN). Atomic; writes a ledger row.
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Amount' } } } }
+      responses: { '200': { description: New balance } }
+  /users/{id}/debit:
+    post:
+      tags: [Users & Wallet]
+      summary: Debit wallet (ADMIN). 402 if funds are insufficient.
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Amount' } } } }
+      responses: { '200': { description: New balance }, '402': { $ref: '#/components/responses/Error' } }
+  /users/{id}/transactions:
+    get:
+      tags: [Users & Wallet]
+      summary: Wallet ledger (ADMIN, paginated)
+      parameters: [{ $ref: '#/components/parameters/id' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses: { '200': { description: OK } }
+  /tournaments:
+    get:
+      tags: [Tournaments]
+      security: []
+      summary: List tournaments (cached)
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [OPEN, ACTIVE, COMPLETED] } }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Tournaments]
+      summary: Create tournament (ADMIN)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TournamentInput' } } } }
+      responses: { '201': { description: Created } }
+  /tournaments/{id}:
+    get:
+      tags: [Tournaments]
+      security: []
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /tournaments/{id}/participants:
+    get:
+      tags: [Tournaments]
+      security: []
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: OK } }
+  /tournaments/{id}/payouts:
+    get:
+      tags: [Tournaments]
+      security: []
+      summary: Prize / refund ledger rows for a completed tournament
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: OK } }
+  /tournaments/{id}/status:
+    patch:
+      tags: [Tournaments]
+      summary: Advance state machine OPEN -> ACTIVE -> COMPLETED (ADMIN). Completing enqueues the payout job.
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [ACTIVE, COMPLETED] } } } } } }
+      responses: { '200': { description: OK }, '409': { $ref: '#/components/responses/Error' } }
+  /tournaments/{id}/join:
+    post:
+      tags: [Tournaments]
+      summary: Join (USER). Debits the entry fee atomically; 409 on duplicate join; 402 if underfunded.
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: Joined }, '402': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /tournaments/{id}/participants/{userId}:
+    delete:
+      tags: [Tournaments]
+      summary: Remove a participant and refund the entry fee (ADMIN, OPEN tournaments only)
+      parameters: [{ $ref: '#/components/parameters/id' }, { name: userId, in: path, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+  /score/submit:
+    post:
+      tags: [Scores]
+      summary: Submit a game result (GAME_SERVER / ADMIN)
+      description: score = winAmount / betAmount. Send `Idempotency-Key` so network retries never double-count; a replay returns 200 with `Idempotent-Replayed - true`.
+      parameters: [{ name: Idempotency-Key, in: header, schema: { type: string, minLength: 8, maxLength: 128 } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScoreSubmit' } } } }
+      responses: { '201': { description: Applied }, '200': { description: Idempotent replay }, '409': { $ref: '#/components/responses/Error' } }
+  /score/history/{participantId}:
+    get:
+      tags: [Scores]
+      summary: Score history (ADMIN)
+      parameters: [{ name: participantId, in: path, required: true, schema: { type: integer } }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses: { '200': { description: OK } }
+  /leaderboard/{tournamentId}:
+    get:
+      tags: [Leaderboard]
+      summary: Paginated leaderboard (Redis sorted set)
+      parameters: [{ $ref: '#/components/parameters/tournamentId' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses: { '200': { description: OK } }
+  /leaderboard/{tournamentId}/top/{n}:
+    get:
+      tags: [Leaderboard]
+      parameters: [{ $ref: '#/components/parameters/tournamentId' }, { name: n, in: path, required: true, schema: { type: integer, maximum: 100 } }]
+      responses: { '200': { description: OK } }
+  /leaderboard/{tournamentId}/user/{userId}:
+    get:
+      tags: [Leaderboard]
+      summary: A player's rank in O(log N)
+      parameters: [{ $ref: '#/components/parameters/tournamentId' }, { name: userId, in: path, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /leaderboard/{tournamentId}/me/around:
+    get:
+      tags: [Leaderboard]
+      summary: The caller plus N neighbours on each side
+      parameters: [{ $ref: '#/components/parameters/tournamentId' }, { name: radius, in: query, schema: { type: integer, default: 3 } }]
+      responses: { '200': { description: OK } }
+  /leaderboard/{tournamentId}/stream:
+    get:
+      tags: [Leaderboard]
+      summary: Server-Sent Events stream (`snapshot`, `update`, `completed`). Use fetch-based SSE so the Authorization header can be sent.
+      parameters: [{ $ref: '#/components/parameters/tournamentId' }]
+      responses: { '200': { description: text/event-stream, content: { text/event-stream: { schema: { type: string } } } } }
+  /health:
+    get: { tags: [Ops], security: [], summary: Liveness, responses: { '200': { description: OK } } }
+  /ready:
+    get: { tags: [Ops], security: [], summary: Readiness (Postgres + Redis), responses: { '200': { description: Ready }, '503': { description: Degraded } } }
+  /metrics:
+    get: { tags: [Ops], security: [], summary: Prometheus metrics, responses: { '200': { description: OK } } }

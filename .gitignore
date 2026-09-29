@@ -30,3 +30,6 @@ build/
 
 # Sequelize
 *.sqlite
+
+# Redis dumps
+dump.rdb

@@ -1,39 +1,18 @@
-// controllers/score.controller.js
 import scoreService from "../services/score.service.js";
+import { score as schemas } from "../validators/schemas.js";
+import { badRequest } from "../errors/AppError.js";
 
-class ScoreController {
+export const submitScore = async (req, res) => {
+  const header = req.get("Idempotency-Key");
+  const parsed = schemas.idempotencyKey.safeParse(header);
+  if (!parsed.success) throw badRequest("Idempotency-Key must be 8-128 chars of [A-Za-z0-9_:.-]");
 
-    async submitScore(req, res) {
-        try {
-            const result = await scoreService.submit(req.body);
-            res.json(result);
-        } catch (err) {
-            res.status(400).json({ msg: err.message });
-        }
-    }
+  const result = await scoreService.submit({ ...req.valid.body, idempotencyKey: parsed.data });
+  if (result.replayed) res.setHeader("Idempotent-Replayed", "true");
+  res.status(result.replayed ? 200 : 201).json(result);
+};
 
-    async getScoreHistory(req, res) {
-        try {
-            const history = await scoreService.getHistory(req.params.participantId);
-
-            if (!history || history.length === 0) {
-                return res.json({
-                    msg: "No score history found",
-                    history: []
-                });
-            }
-
-            res.json({
-                count: history.length,
-                history
-            });
-        } catch (err) {
-            res.status(500).json({
-                msg: "Failed to fetch score history",
-                error: err.message
-            });
-        }
-    }
-}
-
-export default new ScoreController();
+export const history = async (req, res) => {
+  const { rows, count } = await scoreService.getHistory(req.valid.params.participantId, req.valid.query);
+  res.json({ total: count, ...req.valid.query, history: rows });
+};
